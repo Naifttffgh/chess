@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Chess Emoji Edition 🏆</title>
+    <title>Chess Emoji - Promotion & Fast Play 🏆</title>
     <style>
         :root {
             --bg: #161512;
@@ -36,6 +36,7 @@
             grid-template-rows: repeat(8, 75px);
             border: 8px solid #3c3934;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            position: relative;
             user-select: none;
         }
 
@@ -43,7 +44,7 @@
             width: 75px; height: 75px;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer;
-            font-size: 50px; /* حجم الإيموجي */
+            font-size: 50px;
         }
 
         .square.light { background-color: var(--light-sq); }
@@ -51,14 +52,34 @@
         .square.selected { background-color: #f5f682 !important; }
         .square.last-move { background-color: rgba(245, 246, 130, 0.4) !important; }
 
+        /* نافذة الترقية */
+        #promotion-dialog {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            padding: 15px;
+            border: 3px solid var(--accent);
+            border-radius: 10px;
+            z-index: 100;
+            text-align: center;
+        }
+
+        .promo-choice {
+            font-size: 40px;
+            cursor: pointer;
+            padding: 5px;
+            transition: 0.2s;
+        }
+        .promo-choice:hover { background: #444; }
+
         .side-panel {
             background: var(--panel);
             border-radius: 12px;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            height: 600px;
+            display: flex; flex-direction: column; gap: 15px;
+            height: 620px;
         }
 
         .pgn-container {
@@ -69,6 +90,7 @@
             font-family: monospace;
             overflow-y: auto;
             color: #ccc;
+            font-size: 0.85rem;
         }
 
         button {
@@ -81,27 +103,36 @@
 
         .btn-main { background: var(--accent); color: #000; }
         .btn-sec { background: #3c3934; color: #fff; }
+        .btn-fast { background: #e67e22; color: #fff; }
     </style>
 </head>
 <body>
 
     <div class="game-layout">
-        <div style="text-align:center;">
+        <div style="text-align:center; position: relative;">
             <div id="status" style="margin-bottom:15px; font-size:1.5rem;">⚪ دور الأبيض</div>
+            
             <div class="chess-board" id="board"></div>
+
+            <div id="promotion-dialog">
+                <div style="margin-bottom:10px;">اختر الترقية:</div>
+                <span class="promo-choice" onclick="makePromotion('q')">♕</span>
+                <span class="promo-choice" onclick="makePromotion('r')">♖</span>
+                <span class="promo-choice" onclick="makePromotion('b')">♗</span>
+                <span class="promo-choice" onclick="makePromotion('n')">♘</span>
+            </div>
         </div>
 
         <div class="side-panel">
-            <h3 style="text-align:center; color:var(--accent);">⚙️ لوحة التحكم</h3>
+            <h3 style="text-align:center; color:var(--accent);">⚙️ التحكم</h3>
+            <button class="btn-fast" onclick="playFastGame()">🚀 تشغيل المباراة السريعة</button>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <button class="btn-main" onclick="resetGame()">🔄 مباراة جديدة</button>
+                <button class="btn-main" onclick="resetGame()">🔄 جديد</button>
                 <button class="btn-sec" onclick="undoMove()">🔙 تراجع</button>
             </div>
             
-            <div style="font-size:0.9rem;">📝 سجل النقلات:</div>
+            <div style="font-size:0.9rem;">📝 PGN:</div>
             <div class="pgn-container" id="pgn-display"></div>
-            
-            <button class="btn-sec" style="background:#4a90e2" onclick="copyPGN()">📋 نسخ الـ PGN</button>
         </div>
     </div>
 
@@ -111,11 +142,12 @@
         const boardEl = document.getElementById('board');
         const pgnEl = document.getElementById('pgn-display');
         const statusEl = document.getElementById('status');
+        const promoDialog = document.getElementById('promotion-dialog');
 
         let selectedSq = null;
         let lastMove = { from: null, to: null };
+        let pendingPromo = null;
 
-        // خريطة الإيموجي للقطع
         const pieceEmojis = {
             'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
             'b': { 'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
@@ -124,86 +156,87 @@
         function render() {
             boardEl.innerHTML = '';
             const board = game.board();
-
             for (let i = 0; i < 8; i++) {
                 for (let j = 0; j < 8; j++) {
                     const sq = String.fromCharCode(97 + j) + (8 - i);
                     const squareDiv = document.createElement('div');
                     squareDiv.className = `square ${(i + j) % 2 === 0 ? 'light' : 'dark'}`;
-                    
                     if (selectedSq === sq) squareDiv.classList.add('selected');
                     if (lastMove.from === sq || lastMove.to === sq) squareDiv.classList.add('last-move');
 
                     const piece = board[i][j];
-                    if (piece) {
-                        // استخدام الإيموجي بدلاً من الصورة
-                        squareDiv.innerText = pieceEmojis[piece.color][piece.type];
-                    }
-
+                    if (piece) squareDiv.innerText = pieceEmojis[piece.color][piece.type];
+                    
                     squareDiv.onclick = () => handleSquare(sq);
                     boardEl.appendChild(squareDiv);
                 }
             }
-            pgnEl.innerText = game.pgn() || "ابدأ اللعب... 🚀";
+            pgnEl.innerText = game.pgn();
         }
 
         function handleSquare(sq) {
             if (game.game_over()) return;
-
             if (selectedSq) {
-                const move = game.move({ from: selectedSq, to: sq, promotion: 'q' });
-                if (move) {
-                    lastMove = { from: move.from, to: move.to };
-                    selectedSq = null;
-                    render();
-                    updateStatus();
-                    setTimeout(cpuMove, 400);
-                } else {
-                    selectedSq = null;
-                    render();
+                const piece = game.get(selectedSq);
+                // تحقق من الترقية
+                if (piece && piece.type === 'p' && (sq[1] === '8' || sq[1] === '1')) {
+                    pendingPromo = { from: selectedSq, to: sq };
+                    promoDialog.style.display = 'block';
+                    return;
                 }
+                executeMove({ from: selectedSq, to: sq });
             } else {
                 const p = game.get(sq);
-                if (p && p.color === game.turn()) {
-                    selectedSq = sq;
-                    render();
-                }
+                if (p && p.color === game.turn()) { selectedSq = sq; render(); }
             }
         }
 
-        function cpuMove() {
-            const moves = game.moves();
-            if (moves.length === 0) return;
-            const move = game.move(moves[Math.floor(Math.random() * moves.length)]);
-            lastMove = { from: move.from, to: move.to };
-            render();
-            updateStatus();
+        function makePromotion(type) {
+            promoDialog.style.display = 'none';
+            executeMove({ ...pendingPromo, promotion: type });
+            pendingPromo = null;
+        }
+
+        function executeMove(moveObj) {
+            const move = game.move(moveObj);
+            if (move) {
+                lastMove = { from: move.from, to: move.to };
+                selectedSq = null;
+                render();
+                updateStatus();
+            } else {
+                selectedSq = null;
+                render();
+            }
         }
 
         function updateStatus() {
-            let s = game.turn() === 'w' ? "⚪ دور الأبيض" : "⚫ دور الأسود (يفكر...)";
+            let s = game.turn() === 'w' ? "⚪ دور الأبيض" : "⚫ دور الأسود";
             if (game.in_checkmate()) s = "🏁 كش ملك! انتهت اللعبة";
-            if (game.in_draw()) s = "🤝 تعادل!";
             statusEl.innerText = s;
         }
 
-        function resetGame() {
-            game.reset();
-            lastMove = { from: null, to: null };
-            render();
-            updateStatus();
+        // وظيفة المباراة السريعة حسب نقلاتك
+        async function playFastGame() {
+            resetGame();
+            const fastMoves = [
+                "d4", "h5", "d5", "f5", "Qd4", "e6", "d6", "b6", "dxc7", "Kf7", 
+                "cxd8=Q", "Bb4+", "Qxb4", "a5", "Qbxb6", "e5", "Qxc8", "a4", 
+                "Qbb7", "h4", "Qxa8", "d6", "Qaxb8", "g6", "Qxg8+", "Ke7", 
+                "Qxh8", "a3", "Qh6", "e4", "Qb7+", "Ke8", "Qh8#"
+            ];
+            
+            for (const m of fastMoves) {
+                game.move(m);
+                render();
+                updateStatus();
+                await new Promise(r => setTimeout(r, 400)); // سرعة النقلات
+            }
         }
 
-        function undoMove() {
-            game.undo(); game.undo();
-            render();
-        }
-
-        function copyPGN() {
-            navigator.clipboard.writeText(game.pgn());
-            alert("✅ تم النسخ!");
-        }
-
+        function resetGame() { game.reset(); lastMove = {from:null, to:null}; render(); updateStatus(); }
+        function undoMove() { game.undo(); render(); }
+        
         render();
     </script>
 </body>
