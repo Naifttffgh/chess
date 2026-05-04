@@ -1,6 +1,6 @@
 {
-  "short_name": "ChessPro",
-  "name": "Chess Professional Analysis Platform",
+  "short_name": "ChessLocal",
+  "name": "Chess Local Arena - Stockfish 16",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,6 +10,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#161512",
+  "background_color": "#161512"
 }
