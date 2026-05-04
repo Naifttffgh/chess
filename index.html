@@ -3,20 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <title>شطرنج السلاسة القصوى</title>
-    <!-- مكتبة شكل الرقعة -->
+    <!-- مكتبات الشكل والتنسيق -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <style>
-        body { background: #161512; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; color: white; font-family: sans-serif; }
-        #myBoard { width: 90vw; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .info { margin-bottom: 15px; color: #779556; font-weight: bold; font-size: 1.2rem; }
+        body { 
+            background: #161512; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            color: white; 
+            font-family: sans-serif; 
+        }
+        #myBoard { 
+            width: 90vw; 
+            max-width: 500px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+        }
+        .status-box { 
+            margin-bottom: 15px; 
+            padding: 10px 20px;
+            background: #262421;
+            border-radius: 5px;
+            color: #779556; 
+            font-weight: bold; 
+        }
     </style>
 </head>
 <body>
 
-    <div class="info" id="status">جاهز للعب.. حرك قطعة!</div>
+    <div class="status-box" id="status">جاهز للعب.. اسحب قطعة وابدأ</div>
     <div id="myBoard"></div>
 
-    <!-- المكتبات الأساسية -->
+    <!-- استدعاء المكتبات من الروابط مباشرة (عشان ما تحتاج ترفع ملفات) -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
@@ -26,28 +47,39 @@
         var game = new Chess();
         var statusEl = $('#status');
 
-        // سحب المحرك من رابط خارجي مباشرة عشان يشتغل الحين
+        // الحل: استدعاء المحرك من رابط CDN عالمي
+        // كذا المحرك بيشتغل "أونلاين" بدون ما تحتاج ترفع ملفات السكريبت بنفسك
         var engine = new Worker('https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js');
 
         function makeEngineMove() {
-            statusEl.html('المحرك يحلل الآن...');
+            statusEl.html('المحرك (Stockfish) يفكر...');
+            
+            // تهيئة المحرك UCI
             engine.postMessage('uci');
             engine.postMessage('position fen ' + game.fen());
-            engine.postMessage('go depth 12'); // عمق مناسب لسرعة شاشتك
+            engine.postMessage('go depth 12'); 
 
             engine.onmessage = function(e) {
                 if (e.data.includes('bestmove')) {
                     var move = e.data.split('bestmove ')[1].split(' ')[0];
                     game.move(move, { sloppy: true });
                     board.position(game.fen());
-                    statusEl.html('دورك الآن (الأبيض)');
+                    statusEl.html('دورك الآن.. ركز في النقلة!');
                 }
             };
         }
 
         function onDrop (source, target) {
-            var move = game.move({ from: source, to: target, promotion: 'q' });
+            var move = game.move({ 
+                from: source, 
+                to: target, 
+                promotion: 'q' 
+            });
+
+            // إذا الحركة غلط نرجع القطعة
             if (move === null) return 'snapback';
+
+            // المحرك يرد بعد ربع ثانية عشان السلاسة
             window.setTimeout(makeEngineMove, 250);
         }
 
@@ -55,10 +87,14 @@
             draggable: true,
             position: 'start',
             onDrop: onDrop,
+            // صور القطع من رابط خارجي عشان نضمن تطلع 100%
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
         };
 
         board = ChessBoard('myBoard', config);
+
+        // تعديل حجم الرقعة لو صغرت الشاشة
+        $(window).resize(board.resize);
     </script>
 </body>
 </html>
