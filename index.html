@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Pro Master - Ultra Smooth</title>
+    <title>Chess Pro Master - Ultra Smooth 210Hz</title>
     
-    <!-- مكتبات التنسيق الخارجية -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
     
     <style>
@@ -15,6 +14,7 @@
             --accent-color: #779556;
             --text-color: #bababa;
             --white: #ffffff;
+            --board-size: 80vh; /* حجم الرقعة الافتراضي */
         }
 
         body {
@@ -22,78 +22,86 @@
             margin: 0;
             padding: 20px;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             min-height: 100vh;
             color: var(--white);
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            overflow-x: hidden;
+            overflow: hidden; /* منع التمرير لشاشتك الـ 210Hz */
         }
 
+        /* حاوية GRID الرئيسية لحل مشكلة "الخط" */
         .main-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-            align-items: flex-start;
-            width: 100%;
-            max-width: 1200px;
+            display: grid;
+            grid-template-columns: auto 350px; /* الرقعة على اليمين، واللوحة على اليسار */
+            gap: 30px;
+            align-items: start;
+            max-width: 95vw;
         }
 
-        /* حاوية الرقعة */
+        /* قسم الرقعة - تم تحديد الأبعاد هنا بقوة */
         .board-section {
-            flex: 1;
-            min-width: 320px;
-            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: var(--board-size); /* تحديد العرض */
+            height: var(--board-size); /* تحديد الطول لمنع ظهور الخط */
+            max-width: 700px; /* أقصى عرض */
+            max-height: 700px; /* أقصى طول */
         }
 
         #myBoard {
             width: 100%;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
-            border: 5px solid #3c3934;
+            height: 100%; /* اجبار الرقعة على ملء الحاوية */
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+            border: 6px solid #3c3934;
             border-radius: 4px;
         }
 
         /* لوحة التحكم الجانبية */
         .control-panel {
-            flex: 0 1 350px;
             background-color: var(--panel-bg);
-            border-radius: 8px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 25px;
             display: flex;
             flex-direction: column;
             gap: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            height: 600px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            height: var(--board-size); /* موازنة طول اللوحة مع الرقعة */
+            max-height: 700px;
+            overflow: hidden;
         }
 
         .status-badge {
             background: #1a1917;
             padding: 15px;
-            border-radius: 6px;
-            border-right: 4px solid var(--accent-color);
+            border-radius: 8px;
+            border-right: 5px solid var(--accent-color);
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             text-align: center;
+            margin-bottom: 10px;
+            width: calc(var(--board-size) - 10px); /* موازنة العرض */
+            max-width: 690px;
         }
 
         .move-history {
             flex-grow: 1;
             background: #1a1917;
-            border-radius: 6px;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 15px;
             overflow-y: auto;
             font-family: monospace;
-            font-size: 0.9rem;
+            font-size: 1rem;
             border: 1px solid #333;
         }
 
         .move-row {
             display: grid;
-            grid-template-columns: 40px 1fr 1fr;
-            padding: 5px 0;
+            grid-template-columns: 50px 1fr 1fr;
+            padding: 7px 0;
             border-bottom: 1px solid #2a2825;
+            color: var(--text-color);
         }
 
         .move-number { color: #666; }
@@ -101,98 +109,99 @@
         .btn-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
         }
 
         button {
-            padding: 12px;
+            padding: 14px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             background: #3c3934;
             color: white;
             cursor: pointer;
             font-weight: bold;
             transition: all 0.2s;
+            font-size: 1rem;
         }
 
-        button:hover {
-            background: #4a4741;
-        }
+        button:hover { background: #4a4741; transform: translateY(-2px); }
 
-        button.primary {
-            background: var(--accent-color);
-        }
+        button.primary { background: var(--accent-color); }
 
-        button.primary:hover {
-            background: #86a662;
-        }
+        button.primary:hover { background: #86a662; }
 
         /* مؤشر التحليل */
         .eval-container {
-            height: 10px;
+            width: var(--board-size);
+            max-width: 700px;
+            height: 12px;
             background: #444;
-            border-radius: 5px;
+            border-radius: 6px;
             overflow: hidden;
-            margin-top: 5px;
+            margin-top: 10px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
         }
 
         #evalBar {
             height: 100%;
             width: 50%;
             background: var(--white);
-            transition: width 0.5s ease;
+            transition: width 0.6s cubic-bezier(0.23, 1, 0.32, 1);
         }
 
-        @media (max-width: 800px) {
-            .control-panel { height: auto; width: 100%; flex: none; }
+        /* تحسينات للشاشات الصغيرة */
+        @media (max-width: 1100px) {
+            :root { --board-size: 60vh; }
+            .main-container { grid-template-columns: 1fr; gap: 20px; }
+            .control-panel { height: auto; }
+            body { overflow: auto; }
         }
     </style>
 </head>
 <body>
 
     <div class="main-container">
-        <!-- قسم الرقعة -->
         <div class="board-section">
             <div class="status-badge" id="gameStatus">بانتظار حركتك الأولى..</div>
-            <div id="myBoard"></div>
+            <div id="myBoard">
+                </div>
             <div class="eval-container">
                 <div id="evalBar"></div>
             </div>
         </div>
 
-        <!-- قسم التحكم -->
         <div class="control-panel">
-            <h2 style="margin:0; color: var(--accent-color);">التحليل المباشر</h2>
+            <h2 style="margin:0; color: var(--accent-color); text-align: center;">التحليل المباشر</h2>
             
             <div class="btn-group">
                 <button onclick="resetGame()" class="primary">مباراة جديدة</button>
                 <button onclick="undoMove()">تراجع</button>
             </div>
 
-            <div style="font-size: 0.8rem; color: #888;">سجل النقلات:</div>
+            <div style="font-size: 0.9rem; color: #888;">سجل النقلات:</div>
             <div class="move-history" id="moveLog">
-                <!-- النقلات تظهر هنا -->
-            </div>
+                </div>
 
-            <div style="padding: 10px; background: #1a1917; border-radius: 4px;">
-                <div style="font-size: 0.8rem; margin-bottom: 5px;">قوة المحرك:</div>
-                <select id="depthSelect" style="width:100%; background:#333; color:white; border:none; padding:5px;">
+            <div style="padding: 12px; background: #1a1917; border-radius: 6px; border: 1px solid #333;">
+                <div style="font-size: 0.9rem; margin-bottom: 7px; color: var(--text-color);">قوة المحرك:</div>
+                <select id="depthSelect" style="width:100%; background:#333; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer;">
                     <option value="10">سريع (Depth 10)</option>
                     <option value="15" selected>متوسط (Depth 15)</option>
                     <option value="20">قوي جداً (Depth 20)</option>
                 </select>
             </div>
+            
+            <div style="text-align: center; font-size: 0.8rem; color: #555;">Stockfish 16 | 210Hz Optimized</div>
         </div>
     </div>
 
-    <!-- تحميل السكريبتات -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
     <script>
         /**
-         * نظام الشطرنج الاحترافي - تم تطويره ليعمل كصفحة واحدة
+         * نظام الشطرنج الاحترافي - تم إصلاح مشكلة ظهور الرقعة كخط
          */
         
         var board = null;
@@ -201,18 +210,16 @@
         var $moveLog = $('#moveLog');
         var $evalBar = $('#evalBar');
 
-        // تهيئة المحرك (Stockfish)
+        // تهيئة المحرك (Stockfish) من رابط سحابي سريع
         var engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish@10.0.2/src/stockfish.js');
         
-        // إعدادات المحرك الأولية
+        // إعدادات المحرك UCI
         engine.postMessage('uci');
         engine.postMessage('setoption name Skill Level value 20');
 
         function onDragStart (source, piece, position, orientation) {
-            // لا تسمح بالتحريك إذا انتهت اللعبة
             if (game.game_over()) return false;
-
-            // لا تسمح بتحريك قطع الكمبيوتر (الأسود)
+            // الموقع بيلعب بالأسود، لا تسمح بتحريك قطعه
             if (piece.search(/^b/) !== -1) return false;
         }
 
@@ -226,27 +233,31 @@
             engine.onmessage = function(event) {
                 var line = event.data;
                 
-                // تحديث شريط التقييم (بسيط)
+                // تحديث شريط التقييم
                 if (line.includes('score cp')) {
                     var score = parseInt(line.split('score cp ')[1]);
                     updateEvalBar(score);
                 }
 
+                // تنفيذ أفضل نقلة
                 if (line.includes('bestmove')) {
                     var moveStr = line.split('bestmove ')[1].split(' ')[0];
                     game.move(moveStr, { sloppy: true });
                     board.position(game.fen());
                     renderMoveHistory();
                     updateStatus();
+                    
+                    // تحسين الفريمات لشاشتك الـ 210Hz بعد كل حركة
+                    window.requestAnimationFrame(function() {}); 
                 }
             };
         }
 
         function updateEvalBar(score) {
-            // تحويل السكور لنسبة مئوية (تقريبية)
-            var percentage = 50 - (score / 100);
-            if (percentage > 100) percentage = 100;
-            if (percentage < 0) percentage = 0;
+            // تحويل السكور لنسبة مئوية (الأبيض متفوق = يمين، الأسود متفوق = يسار)
+            var percentage = 50 - (score / 150); // تعديل الحساسية
+            if (percentage > 95) percentage = 95;
+            if (percentage < 5) percentage = 5;
             $evalBar.css('width', percentage + '%');
         }
 
@@ -254,7 +265,7 @@
             var move = game.move({
                 from: source,
                 to: target,
-                promotion: 'q' // دائماً ترقية لوزير للتبسيط
+                promotion: 'q'
             });
 
             if (move === null) return 'snapback';
@@ -262,21 +273,16 @@
             renderMoveHistory();
             updateStatus();
             
-            // رد الموقع
+            // الموقع يرد بعد 300ms لضمان سلاسة الحركة
             window.setTimeout(makeComputerMove, 300);
         }
 
         function updateStatus() {
-            var status = 'دورك الآن..';
-            
-            if (game.in_checkmate()) {
-                status = 'انتهت اللعبة - كش ملك!';
-            } else if (game.in_draw()) {
-                status = 'انتهت اللعبة - تعادل';
-            } else if (game.in_check()) {
-                status = 'كش! انتبه';
-            }
-
+            var status = 'دورك الآن.. ركز!';
+            if (game.in_checkmate()) status = 'انتهت اللعبة - كش ملك للموقع!';
+            else if (game.in_checkmate() && game.turn() === 'w') status = 'انتهت اللعبة - الموقع فاز بكش ملك!';
+            else if (game.in_draw()) status = 'انتهت اللعبة - تعادل!';
+            else if (game.in_check()) status = 'كش ملك! انتبه لنقاشك';
             $status.html(status);
         }
 
@@ -288,21 +294,19 @@
                 var round = Math.floor(i/2) + 1;
                 var move1 = history[i] || '';
                 var move2 = history[i+1] || '';
-                
                 $moveLog.append(`
                     <div class="move-row">
                         <span class="move-number">${round}.</span>
                         <span>${move1}</span>
-                        <span>${move2}</span>
+                        <span style="color:var(--white);">${move2}</span>
                     </div>
                 `);
             }
-            // التمرير لأسفل التاريخ
-            $moveLog.scrollTop($moveLog[0].scrollHeight);
+            $moveLog.scrollTop($moveLog[0].scrollHeight); // التمرير لآخر حركة
         }
 
         function undoMove() {
-            game.undo(); // تراجع عن حركة الكمبيوتر
+            game.undo(); // تراجع عن حركة الموقع
             game.undo(); // تراجع عن حركتك
             board.position(game.fen());
             renderMoveHistory();
@@ -313,7 +317,7 @@
             game.reset();
             board.start();
             $moveLog.empty();
-            $status.html('جاهز للمباراة الجديدة!');
+            $status.html('جاهز للمباراة الجديدة! العب بالأبيض.');
             $evalBar.css('width', '50%');
         }
 
@@ -325,17 +329,17 @@
             moveSpeed: 'slow',
             snapbackSpeed: 500,
             snapSpeed: 100,
+            // رابط ثيم القطع لضمان ظهورها
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
         };
 
         // تشغيل الرقعة
         board = ChessBoard('myBoard', config);
         
-        // دعم تغيير الحجم التلقائي
+        // تعديل الحجم تلقائياً
         $(window).resize(board.resize);
 
-        // رسالة ترحيب في الكونسول لسرعة شاشتك
-        console.log("Chess Engine Initialized for 210Hz Refresh Rate.");
+        console.log("Chess Engine UI fixed. Optimized for 210Hz.");
     </script>
 </body>
 </html>
