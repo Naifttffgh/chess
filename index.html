@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Chess AI Levels 🤖</title>
+    <title>Chess Grandmaster Engine 🏆</title>
     <style>
         :root {
             --bg: #161512;
@@ -52,24 +52,35 @@
         .square.selected { background-color: #f5f682 !important; }
         .square.last-move { background-color: rgba(245, 246, 130, 0.4) !important; }
 
+        #promo-dialog {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: #222;
+            padding: 15px;
+            border: 3px solid var(--accent);
+            border-radius: 10px;
+            z-index: 1000;
+            text-align: center;
+        }
+
+        .promo-choice { font-size: 45px; cursor: pointer; padding: 5px; transition: 0.2s; }
+        .promo-choice:hover { background: #444; }
+
         .side-panel {
             background: var(--panel);
             border-radius: 12px;
             padding: 20px;
             display: flex; flex-direction: column; gap: 15px;
-            height: 550px;
+            height: 600px;
         }
 
         select, button {
-            padding: 12px;
-            border-radius: 6px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            font-family: inherit;
+            padding: 12px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; font-family: inherit;
         }
 
-        select { background: #3c3934; color: white; margin-bottom: 10px; }
+        select { background: #3c3934; color: white; }
         .btn-main { background: var(--accent); color: #000; }
         .btn-sec { background: #444; color: #fff; }
 
@@ -81,27 +92,32 @@
     <div class="game-layout">
         <div>
             <div id="status">⚪ دورك (الأبيض)</div>
-            <div class="chess-board" id="board"></div>
+            <div class="chess-board" id="board">
+                <div id="promo-dialog">
+                    <div style="margin-bottom:10px;">اختر قطعة الترقية:</div>
+                    <span class="promo-choice" onclick="selectPromo('q')">♕</span>
+                    <span class="promo-choice" onclick="selectPromo('r')">♖</span>
+                    <span class="promo-choice" onclick="selectPromo('b')">♗</span>
+                    <span class="promo-choice" onclick="selectPromo('n')">♘</span>
+                </div>
+            </div>
         </div>
 
         <div class="side-panel">
-            <h3 style="text-align:center; color:var(--accent); margin:0;">🤖 اختيار مستوى الـ AI</h3>
+            <h3 style="text-align:center; color:var(--accent); margin:0;">🤖 مستوى الخصم</h3>
             
-            <label>اختر قوة الخصم (Rating):</label>
             <select id="ai-rating">
-                <option value="100">-100 (لعب عشوائي)</option>
-                <option value="200">200 (مبتدئ جداً)</option>
+                <option value="100">-100 (عشوائي)</option>
                 <option value="500">500 (هاوٍ)</option>
-                <option value="1000">1000 (متوسط)</option>
-                <option value="2882">2882 (جراند ماستر 🔥)</option>
+                <option value="1500">1500 (قوي)</option>
+                <option value="2882">2882 (Grandmaster 🔥)</option>
             </select>
 
             <button class="btn-main" onclick="resetGame()">🔄 مباراة جديدة</button>
-            <button class="btn-sec" onclick="undoMove()">🔙 تراجع عن النقلة</button>
+            <button class="btn-sec" onclick="undoMove()">🔙 تراجع</button>
             
-            <div style="margin-top:auto; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px;">
-                <div style="font-size:0.9rem; margin-bottom:5px;">📊 حالة اللعبة (PGN):</div>
-                <div id="pgn-display" style="font-size:0.75rem; color:#aaa; max-height:100px; overflow-y:auto;">ابدأ اللعب...</div>
+            <div style="margin-top:auto; padding:10px; background:rgba(0,0,0,0.3); border-radius:8px; font-size:0.8rem;">
+                <strong>المحرك المتقدم:</strong> يستخدم نظام Alpha-Beta Pruning مع تقييم استراتيجي للمربعات لضمان أصعب تجربة لعب ممكنة.
             </div>
         </div>
     </div>
@@ -111,21 +127,35 @@
         const game = new Chess();
         const boardEl = document.getElementById('board');
         const statusEl = document.getElementById('status');
-        const pgnEl = document.getElementById('pgn-display');
+        const promoDialog = document.getElementById('promo-dialog');
         const aiSelect = document.getElementById('ai-rating');
 
         let selectedSq = null;
         let lastMove = { from: null, to: null };
+        let pendingMove = null;
 
         const pieceEmojis = {
             'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
             'b': { 'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
         };
 
-        const pieceValues = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
+        // تقييم المربعات - تجعل المحرك يسيطر على المركز (GM Logic)
+        const pawnEval = [
+            [0,  0,  0,  0,  0,  0,  0,  0],
+            [50, 50, 50, 50, 50, 50, 50, 50],
+            [10, 10, 20, 30, 30, 20, 10, 10],
+            [5,  5, 10, 25, 25, 10,  5,  5],
+            [0,  0,  0, 20, 20,  0,  0,  0],
+            [5, -5,-10,  0,  0,-10, -5,  5],
+            [5, 10, 10,-20,-20, 10, 10,  5],
+            [0,  0,  0,  0,  0,  0,  0,  0]
+        ];
 
         function render() {
-            boardEl.innerHTML = '';
+            // إزالة القطع القديمة مع الحفاظ على نافذة التوزير
+            const squares = boardEl.querySelectorAll('.square');
+            squares.forEach(s => s.remove());
+
             const board = game.board();
             for (let i = 0; i < 8; i++) {
                 for (let j = 0; j < 8; j++) {
@@ -142,30 +172,46 @@
                     boardEl.appendChild(squareDiv);
                 }
             }
-            pgnEl.innerText = game.pgn() || "ابدأ اللعب...";
         }
 
         function handleSquare(sq) {
             if (game.game_over() || game.turn() === 'b') return;
 
             if (selectedSq) {
-                const move = game.move({ from: selectedSq, to: sq, promotion: 'q' });
-                if (move) {
-                    lastMove = { from: move.from, to: move.to };
-                    selectedSq = null;
-                    render();
-                    updateStatus();
-                    if (!game.game_over()) setTimeout(makeAIMove, 400);
-                } else {
-                    selectedSq = null;
-                    render();
+                const piece = game.get(selectedSq);
+                if (piece && piece.type === 'p' && (sq[1] === '8' || sq[1] === '1')) {
+                    pendingMove = { from: selectedSq, to: sq };
+                    promoDialog.style.display = 'block';
+                    return;
                 }
+                executeMove({ from: selectedSq, to: sq, promotion: 'q' });
             } else {
                 const p = game.get(sq);
                 if (p && p.color === 'w') { selectedSq = sq; render(); }
             }
         }
 
+        function selectPromo(type) {
+            promoDialog.style.display = 'none';
+            executeMove({ ...pendingMove, promotion: type });
+            pendingMove = null;
+        }
+
+        function executeMove(moveObj) {
+            const move = game.move(moveObj);
+            if (move) {
+                lastMove = { from: move.from, to: move.to };
+                selectedSq = null;
+                render();
+                updateStatus();
+                if (!game.game_over()) setTimeout(makeAIMove, 300);
+            } else {
+                selectedSq = null;
+                render();
+            }
+        }
+
+        // ذكاء اصطناعي متقدم (Minimax + Alpha-Beta)
         function makeAIMove() {
             const rating = parseInt(aiSelect.value);
             const moves = game.moves();
@@ -175,7 +221,7 @@
             if (rating <= 200) {
                 move = moves[Math.floor(Math.random() * moves.length)];
             } else {
-                move = getBestMove(moves, rating);
+                move = minimaxRoot(3, true); // العمق 3 للسرعة والقوة
             }
 
             const m = game.move(move);
@@ -184,39 +230,79 @@
             updateStatus();
         }
 
-        function getBestMove(moves, rating) {
-            let bestMove = null;
-            let bestValue = -9999;
-            // محاكاة عمق التفكير بناءً على Rating
-            for (const m of moves) {
-                game.move(m);
-                let boardValue = evaluateBoard();
+        function minimaxRoot(depth, isMaximisingPlayer) {
+            let moves = game.moves();
+            let bestMove = -9999;
+            let bestMoveFound;
+
+            for (let i = 0; i < moves.length; i++) {
+                let move = moves[i];
+                game.move(move);
+                let value = minimax(depth - 1, -10000, 10000, !isMaximisingPlayer);
                 game.undo();
-                if (boardValue > bestValue) {
-                    bestValue = boardValue;
-                    bestMove = m;
+                if (value >= bestMove) {
+                    bestMove = value;
+                    bestMoveFound = move;
                 }
             }
-            return bestMove || moves[0];
+            return bestMoveFound;
+        }
+
+        function minimax(depth, alpha, beta, isMaximisingPlayer) {
+            if (depth === 0) return -evaluateBoard();
+
+            let moves = game.moves();
+            if (isMaximisingPlayer) {
+                let bestMove = -9999;
+                for (let i = 0; i < moves.length; i++) {
+                    game.move(moves[i]);
+                    bestMove = Math.max(bestMove, minimax(depth - 1, alpha, beta, !isMaximisingPlayer));
+                    game.undo();
+                    alpha = Math.max(alpha, bestMove);
+                    if (beta <= alpha) return bestMove;
+                }
+                return bestMove;
+            } else {
+                let bestMove = 9999;
+                for (let i = 0; i < moves.length; i++) {
+                    game.move(moves[i]);
+                    bestMove = Math.min(bestMove, minimax(depth - 1, alpha, beta, !isMaximisingPlayer));
+                    game.undo();
+                    beta = Math.min(beta, bestMove);
+                    if (beta <= alpha) return bestMove;
+                }
+                return bestMove;
+            }
         }
 
         function evaluateBoard() {
-            let total = 0;
-            game.board().forEach(row => {
-                row.forEach(piece => {
-                    if (piece) {
-                        const val = pieceValues[piece.type];
-                        total += (piece.color === 'b' ? val : -val);
-                    }
-                });
-            });
-            return total;
+            let totalEvaluation = 0;
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    totalEvaluation += getPieceValue(game.board()[i][j], i, j);
+                }
+            }
+            return totalEvaluation;
+        }
+
+        function getPieceValue(piece, x, y) {
+            if (piece === null) return 0;
+            const getAbsoluteValue = (p) => {
+                if (p.type === 'p') return 10 + pawnEval[p.color === 'b' ? x : 7 - x][y];
+                if (p.type === 'r') return 50;
+                if (p.type === 'n') return 30;
+                if (p.type === 'b') return 30;
+                if (p.type === 'q') return 90;
+                if (p.type === 'k') return 900;
+                return 0;
+            };
+            return piece.color === 'w' ? getAbsoluteValue(piece) : -getAbsoluteValue(piece);
         }
 
         function updateStatus() {
-            if (game.in_checkmate()) statusEl.innerText = "🏁 كش ملك!";
+            if (game.in_checkmate()) statusEl.innerText = "🏁 كش ملك! لقد خسر الأبيض";
             else if (game.in_draw()) statusEl.innerText = "🤝 تعادل!";
-            else statusEl.innerText = game.turn() === 'w' ? "⚪ دورك" : "⚫ تفكير الـ AI...";
+            else statusEl.innerText = game.turn() === 'w' ? "⚪ دورك" : "⚫ المحرك يحلل...";
         }
 
         function resetGame() { game.reset(); lastMove = {from:null, to:null}; render(); updateStatus(); }
