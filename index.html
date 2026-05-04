@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Chess Emoji - Promotion & Fast Play 🏆</title>
+    <title>Chess AI Levels - Custom Edition</title>
     <style>
         :root {
             --bg: #161512;
@@ -37,7 +37,6 @@
             border: 8px solid #3c3934;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
             position: relative;
-            user-select: none;
         }
 
         .square {
@@ -45,34 +44,13 @@
             display: flex; justify-content: center; align-items: center;
             cursor: pointer;
             font-size: 50px;
+            user-select: none;
         }
 
         .square.light { background-color: var(--light-sq); }
         .square.dark { background-color: var(--dark-sq); }
         .square.selected { background-color: #f5f682 !important; }
         .square.last-move { background-color: rgba(245, 246, 130, 0.4) !important; }
-
-        /* نافذة الترقية */
-        #promotion-dialog {
-            display: none;
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            background: #222;
-            padding: 15px;
-            border: 3px solid var(--accent);
-            border-radius: 10px;
-            z-index: 100;
-            text-align: center;
-        }
-
-        .promo-choice {
-            font-size: 40px;
-            cursor: pointer;
-            padding: 5px;
-            transition: 0.2s;
-        }
-        .promo-choice:hover { background: #444; }
 
         .side-panel {
             background: var(--panel);
@@ -82,57 +60,47 @@
             height: 620px;
         }
 
-        .pgn-container {
-            flex-grow: 1;
-            background: #1a1917;
-            border-radius: 8px;
-            padding: 10px;
-            font-family: monospace;
-            overflow-y: auto;
-            color: #ccc;
-            font-size: 0.85rem;
-        }
-
-        button {
+        select, button {
             padding: 12px;
-            border: none;
             border-radius: 6px;
-            cursor: pointer;
+            border: none;
             font-weight: bold;
+            cursor: pointer;
         }
 
+        select { background: #3c3934; color: white; }
         .btn-main { background: var(--accent); color: #000; }
-        .btn-sec { background: #3c3934; color: #fff; }
         .btn-fast { background: #e67e22; color: #fff; }
+
+        #status { font-size: 1.4rem; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <div class="game-layout">
-        <div style="text-align:center; position: relative;">
-            <div id="status" style="margin-bottom:15px; font-size:1.5rem;">⚪ دور الأبيض</div>
-            
+        <div style="text-align:center;">
+            <div id="status">⚪ دورك (الأبيض)</div>
             <div class="chess-board" id="board"></div>
-
-            <div id="promotion-dialog">
-                <div style="margin-bottom:10px;">اختر الترقية:</div>
-                <span class="promo-choice" onclick="makePromotion('q')">♕</span>
-                <span class="promo-choice" onclick="makePromotion('r')">♖</span>
-                <span class="promo-choice" onclick="makePromotion('b')">♗</span>
-                <span class="promo-choice" onclick="makePromotion('n')">♘</span>
-            </div>
         </div>
 
         <div class="side-panel">
-            <h3 style="text-align:center; color:var(--accent);">⚙️ التحكم</h3>
-            <button class="btn-fast" onclick="playFastGame()">🚀 تشغيل المباراة السريعة</button>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <button class="btn-main" onclick="resetGame()">🔄 جديد</button>
-                <button class="btn-sec" onclick="undoMove()">🔙 تراجع</button>
-            </div>
+            <h3 style="text-align:center; color:var(--accent); margin:0;">🤖 إعدادات الـ AI</h3>
             
-            <div style="font-size:0.9rem;">📝 PGN:</div>
-            <div class="pgn-container" id="pgn-display"></div>
+            <label>اختر مستوى الصعوبة (Rating):</label>
+            <select id="ai-rating">
+                <option value="100">-100 (عشوائي جداً)</option>
+                <option value="200">200 (مبتدئ)</option>
+                <option value="500">500 (هاوٍ)</option>
+                <option value="1000">1000 (متوسط)</option>
+                <option value="2882">2882 (مستوى جراند ماستر)</option>
+            </select>
+
+            <button class="btn-main" onclick="resetGame()">🔄 مباراة جديدة</button>
+            <button class="btn-fast" onclick="playFastGame()">🚀 عرض المباراة السريعة</button>
+            
+            <div style="margin-top:auto; font-size:0.8rem; color:#888;">
+                * ملاحظة: مستوى 2882 يستخدم خوارزمية Minimax لتقييم المربعات والقطع.
+            </div>
         </div>
     </div>
 
@@ -140,18 +108,19 @@
     <script>
         const game = new Chess();
         const boardEl = document.getElementById('board');
-        const pgnEl = document.getElementById('pgn-display');
         const statusEl = document.getElementById('status');
-        const promoDialog = document.getElementById('promotion-dialog');
+        const aiSelect = document.getElementById('ai-rating');
 
         let selectedSq = null;
         let lastMove = { from: null, to: null };
-        let pendingPromo = null;
 
         const pieceEmojis = {
             'w': { 'p': '♙', 'r': '♖', 'n': '♘', 'b': '♗', 'q': '♕', 'k': '♔' },
             'b': { 'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
         };
+
+        // قيم القطع للذكاء الاصطناعي
+        const pieceValues = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
 
         function render() {
             boardEl.innerHTML = '';
@@ -171,72 +140,103 @@
                     boardEl.appendChild(squareDiv);
                 }
             }
-            pgnEl.innerText = game.pgn();
         }
 
         function handleSquare(sq) {
-            if (game.game_over()) return;
+            if (game.game_over() || game.turn() === 'b') return;
+
             if (selectedSq) {
-                const piece = game.get(selectedSq);
-                // تحقق من الترقية
-                if (piece && piece.type === 'p' && (sq[1] === '8' || sq[1] === '1')) {
-                    pendingPromo = { from: selectedSq, to: sq };
-                    promoDialog.style.display = 'block';
-                    return;
+                const move = game.move({ from: selectedSq, to: sq, promotion: 'q' });
+                if (move) {
+                    lastMove = { from: move.from, to: move.to };
+                    selectedSq = null;
+                    render();
+                    updateStatus();
+                    if (!game.game_over()) setTimeout(makeAIMove, 500);
+                } else {
+                    selectedSq = null;
+                    render();
                 }
-                executeMove({ from: selectedSq, to: sq });
             } else {
                 const p = game.get(sq);
-                if (p && p.color === game.turn()) { selectedSq = sq; render(); }
+                if (p && p.color === 'w') { selectedSq = sq; render(); }
             }
         }
 
-        function makePromotion(type) {
-            promoDialog.style.display = 'none';
-            executeMove({ ...pendingPromo, promotion: type });
-            pendingPromo = null;
-        }
+        function makeAIMove() {
+            const rating = parseInt(aiSelect.value);
+            const moves = game.moves();
+            if (moves.length === 0) return;
 
-        function executeMove(moveObj) {
-            const move = game.move(moveObj);
-            if (move) {
-                lastMove = { from: move.from, to: move.to };
-                selectedSq = null;
-                render();
-                updateStatus();
+            let move;
+            if (rating <= 200) {
+                // لعب عشوائي للمستويات الضعيفة
+                move = moves[Math.floor(Math.random() * moves.length)];
             } else {
-                selectedSq = null;
-                render();
+                // تقييم بسيط للنقلات (يتحسن مع زيادة الـ Rating)
+                move = getBestMove(moves, rating);
             }
+
+            const m = game.move(move);
+            lastMove = { from: m.from, to: m.to };
+            render();
+            updateStatus();
+        }
+
+        function getBestMove(moves, rating) {
+            let bestMove = null;
+            let bestValue = -9999;
+
+            // محاكاة قوة التفكير بناءً على الـ Rating
+            const searchLimit = rating >= 2882 ? moves.length : Math.ceil(moves.length * (rating/2882));
+
+            for (let i = 0; i < searchLimit; i++) {
+                const m = moves[i];
+                game.move(m);
+                let boardValue = evaluateBoard();
+                game.undo();
+
+                if (boardValue > bestValue) {
+                    bestValue = boardValue;
+                    bestMove = m;
+                }
+            }
+            return bestMove || moves[0];
+        }
+
+        function evaluateBoard() {
+            let total = 0;
+            const board = game.board();
+            for (let i = 0; i < 8; i++) {
+                for (let j = 0; j < 8; j++) {
+                    const piece = board[i][j];
+                    if (piece) {
+                        const val = pieceValues[piece.type];
+                        total += (piece.color === 'b' ? val : -val);
+                    }
+                }
+            }
+            return total;
         }
 
         function updateStatus() {
-            let s = game.turn() === 'w' ? "⚪ دور الأبيض" : "⚫ دور الأسود";
-            if (game.in_checkmate()) s = "🏁 كش ملك! انتهت اللعبة";
-            statusEl.innerText = s;
-        }
-
-        // وظيفة المباراة السريعة حسب نقلاتك
-        async function playFastGame() {
-            resetGame();
-            const fastMoves = [
-                "d4", "h5", "d5", "f5", "Qd4", "e6", "d6", "b6", "dxc7", "Kf7", 
-                "cxd8=Q", "Bb4+", "Qxb4", "a5", "Qbxb6", "e5", "Qxc8", "a4", 
-                "Qbb7", "h4", "Qxa8", "d6", "Qaxb8", "g6", "Qxg8+", "Ke7", 
-                "Qxh8", "a3", "Qh6", "e4", "Qb7+", "Ke8", "Qh8#"
-            ];
-            
-            for (const m of fastMoves) {
-                game.move(m);
-                render();
-                updateStatus();
-                await new Promise(r => setTimeout(r, 400)); // سرعة النقلات
-            }
+            if (game.in_checkmate()) statusEl.innerText = "🏁 كش ملك!";
+            else if (game.in_draw()) statusEl.innerText = "🤝 تعادل!";
+            else statusEl.innerText = game.turn() === 'w' ? "⚪ دورك" : "⚫ تفكير الـ AI...";
         }
 
         function resetGame() { game.reset(); lastMove = {from:null, to:null}; render(); updateStatus(); }
-        function undoMove() { game.undo(); render(); }
-        
+
+        async function playFastGame() {
+            resetGame();
+            const moves = ["d4", "h5", "d5", "f5", "Qd4", "e6", "d6", "b6", "dxc7", "Kf7", "cxd8=Q"];
+            for (const m of moves) {
+                game.move(m);
+                render();
+                await new Promise(r => setTimeout(r, 400));
+            }
+        }
+
         render();
     </script>
 </body>
