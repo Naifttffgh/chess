@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>Chess AI Levels - Custom Edition</title>
+    <title>Chess AI Levels 🤖</title>
     <style>
         :root {
             --bg: #161512;
@@ -57,7 +57,7 @@
             border-radius: 12px;
             padding: 20px;
             display: flex; flex-direction: column; gap: 15px;
-            height: 620px;
+            height: 550px;
         }
 
         select, button {
@@ -66,40 +66,42 @@
             border: none;
             font-weight: bold;
             cursor: pointer;
+            font-family: inherit;
         }
 
-        select { background: #3c3934; color: white; }
+        select { background: #3c3934; color: white; margin-bottom: 10px; }
         .btn-main { background: var(--accent); color: #000; }
-        .btn-fast { background: #e67e22; color: #fff; }
+        .btn-sec { background: #444; color: #fff; }
 
-        #status { font-size: 1.4rem; margin-bottom: 10px; }
+        #status { font-size: 1.4rem; margin-bottom: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
     <div class="game-layout">
-        <div style="text-align:center;">
+        <div>
             <div id="status">⚪ دورك (الأبيض)</div>
             <div class="chess-board" id="board"></div>
         </div>
 
         <div class="side-panel">
-            <h3 style="text-align:center; color:var(--accent); margin:0;">🤖 إعدادات الـ AI</h3>
+            <h3 style="text-align:center; color:var(--accent); margin:0;">🤖 اختيار مستوى الـ AI</h3>
             
-            <label>اختر مستوى الصعوبة (Rating):</label>
+            <label>اختر قوة الخصم (Rating):</label>
             <select id="ai-rating">
-                <option value="100">-100 (عشوائي جداً)</option>
-                <option value="200">200 (مبتدئ)</option>
+                <option value="100">-100 (لعب عشوائي)</option>
+                <option value="200">200 (مبتدئ جداً)</option>
                 <option value="500">500 (هاوٍ)</option>
                 <option value="1000">1000 (متوسط)</option>
-                <option value="2882">2882 (مستوى جراند ماستر)</option>
+                <option value="2882">2882 (جراند ماستر 🔥)</option>
             </select>
 
             <button class="btn-main" onclick="resetGame()">🔄 مباراة جديدة</button>
-            <button class="btn-fast" onclick="playFastGame()">🚀 عرض المباراة السريعة</button>
+            <button class="btn-sec" onclick="undoMove()">🔙 تراجع عن النقلة</button>
             
-            <div style="margin-top:auto; font-size:0.8rem; color:#888;">
-                * ملاحظة: مستوى 2882 يستخدم خوارزمية Minimax لتقييم المربعات والقطع.
+            <div style="margin-top:auto; padding:10px; background:rgba(0,0,0,0.2); border-radius:8px;">
+                <div style="font-size:0.9rem; margin-bottom:5px;">📊 حالة اللعبة (PGN):</div>
+                <div id="pgn-display" style="font-size:0.75rem; color:#aaa; max-height:100px; overflow-y:auto;">ابدأ اللعب...</div>
             </div>
         </div>
     </div>
@@ -109,6 +111,7 @@
         const game = new Chess();
         const boardEl = document.getElementById('board');
         const statusEl = document.getElementById('status');
+        const pgnEl = document.getElementById('pgn-display');
         const aiSelect = document.getElementById('ai-rating');
 
         let selectedSq = null;
@@ -119,7 +122,6 @@
             'b': { 'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚' }
         };
 
-        // قيم القطع للذكاء الاصطناعي
         const pieceValues = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
 
         function render() {
@@ -140,6 +142,7 @@
                     boardEl.appendChild(squareDiv);
                 }
             }
+            pgnEl.innerText = game.pgn() || "ابدأ اللعب...";
         }
 
         function handleSquare(sq) {
@@ -152,7 +155,7 @@
                     selectedSq = null;
                     render();
                     updateStatus();
-                    if (!game.game_over()) setTimeout(makeAIMove, 500);
+                    if (!game.game_over()) setTimeout(makeAIMove, 400);
                 } else {
                     selectedSq = null;
                     render();
@@ -170,10 +173,8 @@
 
             let move;
             if (rating <= 200) {
-                // لعب عشوائي للمستويات الضعيفة
                 move = moves[Math.floor(Math.random() * moves.length)];
             } else {
-                // تقييم بسيط للنقلات (يتحسن مع زيادة الـ Rating)
                 move = getBestMove(moves, rating);
             }
 
@@ -186,16 +187,11 @@
         function getBestMove(moves, rating) {
             let bestMove = null;
             let bestValue = -9999;
-
-            // محاكاة قوة التفكير بناءً على الـ Rating
-            const searchLimit = rating >= 2882 ? moves.length : Math.ceil(moves.length * (rating/2882));
-
-            for (let i = 0; i < searchLimit; i++) {
-                const m = moves[i];
+            // محاكاة عمق التفكير بناءً على Rating
+            for (const m of moves) {
                 game.move(m);
                 let boardValue = evaluateBoard();
                 game.undo();
-
                 if (boardValue > bestValue) {
                     bestValue = boardValue;
                     bestMove = m;
@@ -206,16 +202,14 @@
 
         function evaluateBoard() {
             let total = 0;
-            const board = game.board();
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const piece = board[i][j];
+            game.board().forEach(row => {
+                row.forEach(piece => {
                     if (piece) {
                         const val = pieceValues[piece.type];
                         total += (piece.color === 'b' ? val : -val);
                     }
-                }
-            }
+                });
+            });
             return total;
         }
 
@@ -226,16 +220,7 @@
         }
 
         function resetGame() { game.reset(); lastMove = {from:null, to:null}; render(); updateStatus(); }
-
-        async function playFastGame() {
-            resetGame();
-            const moves = ["d4", "h5", "d5", "f5", "Qd4", "e6", "d6", "b6", "dxc7", "Kf7", "cxd8=Q"];
-            for (const m of moves) {
-                game.move(m);
-                render();
-                await new Promise(r => setTimeout(r, 400));
-            }
-        }
+        function undoMove() { game.undo(); game.undo(); render(); updateStatus(); }
 
         render();
     </script>
