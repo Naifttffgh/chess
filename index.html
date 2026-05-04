@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Ultra - No External Assets</title>
+    <title>Chess Pro - Promotion UI</title>
     <style>
         :root {
             --bg: #161512;
@@ -34,11 +34,12 @@
             max-width: 1200px;
         }
 
-        /* حاوية الرقعة - منع ظهور "الخط" */
+        /* الرقعة */
         .board-container {
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative;
         }
 
         .chess-board {
@@ -63,15 +64,46 @@
 
         .square.light { background-color: var(--light-sq); }
         .square.dark { background-color: var(--dark-sq); }
-        
         .square.selected { background-color: #f5f682 !important; }
-        .square.highlight { background-color: #f5f682bb !important; }
+        .square.last-move { background-color: #f5f68288 !important; }
 
-        /* القطع باستخدام الرموز (Emojis) لضمان الظهور */
         .piece {
-            transition: transform 0.1s ease-in-out;
             z-index: 2;
+            transition: transform 0.1s;
         }
+
+        /* نافذة خيارات الترقية (Promotion UI) */
+        #promotion-overlay {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.85);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 100;
+            text-align: center;
+            border: 2px solid var(--accent);
+        }
+
+        .promo-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .promo-btn {
+            background: #444;
+            font-size: 40px;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: 0.2s;
+            border: 1px solid #666;
+        }
+
+        .promo-btn:hover { background: var(--accent); }
 
         /* لوحة التحكم */
         .side-panel {
@@ -90,35 +122,30 @@
             padding: 15px;
             border-radius: 8px;
             border-right: 5px solid var(--accent);
-            font-size: 1.1rem;
             text-align: center;
         }
 
         .history-box {
             flex-grow: 1;
             background: #1a1917;
-            border: 1px solid #333;
             border-radius: 8px;
             padding: 10px;
             overflow-y: auto;
             font-family: monospace;
+            border: 1px solid #333;
         }
 
         .move-entry {
             display: flex;
             justify-content: space-between;
-            padding: 5px 10px;
+            padding: 5px;
             border-bottom: 1px solid #2a2825;
             font-size: 0.9rem;
         }
 
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        button {
+        .controls button {
+            width: 100%;
+            margin-bottom: 10px;
             background: #3c3934;
             color: white;
             border: none;
@@ -128,7 +155,6 @@
             font-weight: bold;
         }
 
-        button:hover { background: #4a4741; }
         button.new-game { background: var(--accent); color: #000; }
 
         @media (max-width: 1000px) {
@@ -141,9 +167,18 @@
 
     <div class="game-layout">
         <div class="board-container">
-            <div class="status-header" id="status">دورك الآن (الأبيض)</div>
-            <div class="chess-board" id="board">
-                <!-- المربعات والقطع تتردد هنا برمجياً -->
+            <div class="status-header" id="status">دورك (الأبيض)</div>
+            <div class="chess-board" id="board"></div>
+            
+            <!-- نافذة الترقية -->
+            <div id="promotion-overlay">
+                <div>اختر قطعة الترقية:</div>
+                <div class="promo-options">
+                    <div class="promo-btn" onclick="selectPromotion('q')">♕</div>
+                    <div class="promo-btn" onclick="selectPromotion('r')">♖</div>
+                    <div class="promo-btn" onclick="selectPromotion('b')">♗</div>
+                    <div class="promo-btn" onclick="selectPromotion('n')">♘</div>
+                </div>
             </div>
         </div>
 
@@ -153,29 +188,23 @@
                 <button class="new-game" onclick="initGame()">مباراة جديدة</button>
                 <button onclick="undoMove()">تراجع</button>
             </div>
-            <div class="history-box" id="history">
-                <!-- تاريخ النقلات -->
-            </div>
-            <div style="font-size: 0.8rem; color: #666; text-align:center;">
-                تحسين 210Hz | رموز محلية 100%
-            </div>
+            <div class="history-box" id="history"></div>
+            <div style="font-size: 0.8rem; color: #555; text-align:center;">210Hz Optimized | Promotion Enabled</div>
         </div>
     </div>
 
-    <!-- نستخدم مكتبة القوانين فقط لضمان دقة اللعب -->
     <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 
     <script>
-        /**
-         * نظام الشطرنج المستقل - رموز محلية وتنسيق يدوي
-         */
         const boardElement = document.getElementById('board');
         const statusElement = document.getElementById('status');
         const historyElement = document.getElementById('history');
+        const promoOverlay = document.getElementById('promotion-overlay');
+        
         let game = new Chess();
         let selectedSquare = null;
+        let pendingMove = null;
 
-        // خريطة القطع للإيموجي
         const pieceEmojis = {
             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
@@ -183,6 +212,9 @@
 
         function initGame() {
             game = new Chess();
+            selectedSquare = null;
+            pendingMove = null;
+            promoOverlay.style.display = 'none';
             renderBoard();
             updateStatus();
             historyElement.innerHTML = '';
@@ -200,14 +232,13 @@
                     
                     square.className = `square ${isDark ? 'dark' : 'light'}`;
                     square.dataset.square = squareName;
-                    
+                    if (selectedSquare === squareName) square.classList.add('selected');
+
                     const piece = boardData[i][j];
                     if (piece) {
                         const pieceSpan = document.createElement('span');
                         pieceSpan.className = 'piece';
-                        pieceSpan.innerText = pieceEmojis[piece.type === 'p' && piece.color === 'b' ? 'p' : 
-                                                        piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
-                        // تلوين القطع لسهولة التمييز
+                        pieceSpan.innerText = pieceEmojis[piece.color === 'w' ? piece.type.toUpperCase() : piece.type];
                         pieceSpan.style.color = piece.color === 'w' ? '#fff' : '#000';
                         square.appendChild(pieceSpan);
                     }
@@ -219,46 +250,59 @@
         }
 
         function handleSquareClick(square) {
-            if (game.game_over()) return;
+            if (game.game_over() || pendingMove) return;
 
             if (selectedSquare) {
-                const move = game.move({
-                    from: selectedSquare,
-                    to: square,
-                    promotion: 'q'
-                });
-
-                if (move) {
-                    selectedSquare = null;
-                    renderBoard();
-                    updateStatus();
-                    addHistory(move);
-                    // الموقع يلعب رده
-                    setTimeout(makeComputerMove, 300);
-                } else {
-                    selectedSquare = square;
-                    highlightSquare(square);
+                // التحقق من وجود ترقية (وصول عسكري لآخر صف)
+                const moveData = { from: selectedSquare, to: square };
+                const piece = game.get(selectedSquare);
+                
+                if (piece && piece.type === 'p' && (square[1] === '8' || square[1] === '1')) {
+                    // إظهار نافذة الترقية
+                    pendingMove = moveData;
+                    promoOverlay.style.display = 'block';
+                    return;
                 }
+
+                executeMove(moveData);
             } else {
-                selectedSquare = square;
-                highlightSquare(square);
+                const piece = game.get(square);
+                if (piece && piece.color === 'w') {
+                    selectedSquare = square;
+                    renderBoard();
+                }
             }
         }
 
-        function highlightSquare(square) {
-            renderBoard();
-            const el = document.querySelector(`[data-square="${square}"]`);
-            if (el) el.classList.add('selected');
+        function selectPromotion(pieceType) {
+            if (pendingMove) {
+                pendingMove.promotion = pieceType;
+                executeMove(pendingMove);
+                pendingMove = null;
+                promoOverlay.style.display = 'none';
+            }
+        }
+
+        function executeMove(moveObj) {
+            const move = game.move(moveObj);
+            if (move) {
+                selectedSquare = null;
+                renderBoard();
+                updateStatus();
+                addHistory(move);
+                setTimeout(makeComputerMove, 300);
+            } else {
+                selectedSquare = null;
+                renderBoard();
+            }
         }
 
         function makeComputerMove() {
             const moves = game.moves();
             if (moves.length === 0) return;
-
-            // ذكاء اصطناعي بسيط (اختيار أفضل نقلة متاحة برمجياً)
+            // الموقع يختار حركة ذكية (تلقائياً يختار الوزير لو فيه ترقية)
             const randomMove = moves[Math.floor(Math.random() * moves.length)];
             const move = game.move(randomMove);
-            
             renderBoard();
             updateStatus();
             addHistory(move);
@@ -274,7 +318,7 @@
         function addHistory(move) {
             const div = document.createElement('div');
             div.className = 'move-entry';
-            div.innerHTML = `<span>نقلة: ${move.san}</span> <span>${game.turn() === 'w' ? 'الأسود' : 'الأبيض'}</span>`;
+            div.innerHTML = `<span>${move.from} → ${move.to}</span> <span>${move.san}</span>`;
             historyElement.prepend(div);
         }
 
@@ -284,11 +328,7 @@
             updateStatus();
         }
 
-        // تشغيل اللعبة عند التحميل
         initGame();
-        
-        // تحسين الأداء لشاشة 210Hz
-        window.requestAnimationFrame(() => {});
     </script>
 </body>
 </html>
