@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Master - Local Assets & PGN</title>
+    <title>Chess Master - cburnett Theme</title>
     <style>
         :root {
             --bg: #161512;
@@ -17,7 +17,7 @@
         body {
             background-color: var(--bg);
             color: var(--text);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             margin: 0;
             display: flex;
             justify-content: center;
@@ -33,13 +33,13 @@
             padding: 20px;
         }
 
-        /* الرقعة لمنع ظهور الخط */
         .chess-board {
             display: grid;
             grid-template-columns: repeat(8, 75px);
             grid-template-rows: repeat(8, 75px);
             border: 10px solid #3c3934;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            user-select: none;
         }
 
         .square {
@@ -55,17 +55,16 @@
         .square.light { background-color: var(--light-sq); }
         .square.dark { background-color: var(--dark-sq); }
         .square.selected { background-color: #f5f682 !important; }
+        .square.last-move { background-color: rgba(245, 246, 130, 0.5) !important; }
 
-        /* تنسيق القطع (الصور المحلية) */
         .piece-img {
-            width: 90%;
-            height: 90%;
+            width: 100%;
+            height: 100%;
             object-fit: contain;
             pointer-events: none;
             z-index: 2;
         }
 
-        /* لوحة التحكم الجانبية */
         .side-panel {
             background: var(--panel);
             border-radius: 12px;
@@ -84,8 +83,7 @@
             border-radius: 8px;
             padding: 10px;
             overflow-y: auto;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9rem;
+            font-family: monospace;
         }
 
         .pgn-display {
@@ -95,8 +93,6 @@
             font-size: 0.75rem;
             color: #888;
             word-break: break-all;
-            max-height: 60px;
-            overflow-y: auto;
             border: 1px dashed #444;
         }
 
@@ -119,19 +115,17 @@
         .btn-sec { background: #3c3934; color: #fff; }
         .btn-pgn { background: #4a90e2; color: #fff; grid-column: span 2; }
 
-        button:hover { opacity: 0.9; transform: translateY(-1px); }
-
-        /* نافذة التوزير */
         #promo-modal {
             display: none;
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             background: #222;
-            padding: 15px;
+            padding: 20px;
             border-radius: 10px;
             z-index: 1000;
             border: 2px solid var(--accent);
+            text-align: center;
         }
     </style>
 </head>
@@ -139,11 +133,11 @@
 
     <div class="game-layout">
         <div style="display:flex; flex-direction:column; align-items:center;">
-            <div id="status" style="margin-bottom:10px; font-size:1.2rem;">استعد للعب..</div>
+            <div id="status" style="margin-bottom:10px; font-size:1.2rem; font-weight:bold;">دور الأبيض..</div>
             <div class="chess-board" id="board"></div>
             
             <div id="promo-modal">
-                <div style="margin-bottom:10px; text-align:center;">اختر قطعة الترقية:</div>
+                <div style="margin-bottom:15px;">ترقية العسكري (توزير):</div>
                 <div style="display:flex; gap:10px;">
                     <button class="btn-sec" onclick="selectPromo('q')">وزير</button>
                     <button class="btn-sec" onclick="selectPromo('r')">قلعة</button>
@@ -154,22 +148,23 @@
         </div>
 
         <div class="side-panel">
-            <h3 style="margin:0; color:var(--accent); text-align:center;">لوحة التحكم</h3>
+            <h3 style="margin:0; color:var(--accent); text-align:center;">المحرك الذكي</h3>
             
             <div class="btn-group">
                 <button class="btn-main" onclick="resetGame()">مباراة جديدة</button>
                 <button class="btn-sec" onclick="undoMove()">تراجع</button>
-                <button class="btn-pgn" onclick="exportPGN()">تصدير ملف PGN (نسخ)</button>
+                <button class="btn-pgn" onclick="exportPGN()">نسخ ملف PGN</button>
             </div>
 
-            <div style="font-size:0.8rem; color:#aaa;">سجل النقلات المباشر:</div>
+            <div style="font-size:0.8rem; color:#aaa;">سجل النقلات:</div>
             <div class="history-box" id="history"></div>
 
-            <div style="font-size:0.8rem; color:#aaa;">كود PGN الحالي:</div>
+            <div style="font-size:0.8rem; color:#aaa;">كود PGN للمباراة:</div>
             <div class="pgn-display" id="pgn-text"></div>
         </div>
     </div>
 
+    <!-- مكتبة قوانين الشطرنج -->
     <script src="https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js"></script>
 
     <script>
@@ -181,13 +176,17 @@
         let game = new Chess();
         let selectedSquare = null;
         let pendingMove = null;
+        let lastMove = { from: null, to: null };
 
-        // دالة لجلب مسار الصورة من المجلد المحلي
-        // التسمية المتوقعة: wP (عسكري أبيض)، bK (ملك أسود)
+        // المسار الجديد اللي طلبته
+        const PIECE_PATH = 'pieces/cburnett/';
+        // إذا كانت صورك بصيغة png غيرها هنا إلى .png
+        const EXT = '.svg'; 
+
         function getPieceImg(piece) {
             const color = piece.color; // 'w' or 'b'
             const type = piece.type.toUpperCase(); // P, R, N, B, Q, K
-            return `pieces/${color}${type}.png`; 
+            return `${PIECE_PATH}${color}${type}${EXT}`; 
         }
 
         function renderBoard() {
@@ -196,20 +195,27 @@
 
             for (let i = 0; i < 8; i++) {
                 for (let j = 0; j < 8; j++) {
-                    const square = document.createElement('div');
                     const squareName = String.fromCharCode(97 + j) + (8 - i);
+                    const square = document.createElement('div');
                     
                     square.className = `square ${(i+j)%2 === 1 ? 'dark' : 'light'}`;
                     square.dataset.square = squareName;
+
+                    // تمييز المربعات المختارة وآخر حركة
                     if (selectedSquare === squareName) square.classList.add('selected');
+                    if (lastMove.from === squareName || lastMove.to === squareName) square.classList.add('last-move');
 
                     const piece = boardData[i][j];
                     if (piece) {
                         const img = document.createElement('img');
                         img.src = getPieceImg(piece);
                         img.className = 'piece-img';
-                        // في حال لم تجد الصورة، استخدم النص كاحتياط
-                        img.onerror = () => { img.style.display='none'; square.innerText = piece.type; };
+                        // معالجة الخطأ في حال لم يجد الصورة
+                        img.onerror = () => { 
+                            img.style.display = 'none';
+                            square.innerText = piece.type.toUpperCase();
+                            square.style.color = piece.color === 'w' ? '#fff' : '#000';
+                        };
                         square.appendChild(img);
                     }
 
@@ -217,7 +223,7 @@
                     boardEl.appendChild(square);
                 }
             }
-            pgnEl.innerText = game.pgn();
+            pgnEl.innerText = game.pgn() || "لا توجد نقلات بعد..";
         }
 
         function onSquareClick(sq) {
@@ -227,17 +233,22 @@
                 const moveData = { from: selectedSquare, to: sq };
                 const piece = game.get(selectedSquare);
                 
-                // فحص الترقية (التوزير)
+                // الترقية (التوزير)
                 if (piece && piece.type === 'p' && (sq[1] === '8' || sq[1] === '1')) {
-                    pendingMove = moveData;
-                    document.getElementById('promo-modal').style.display = 'block';
-                    return;
+                    const possibleMoves = game.moves({square: selectedSquare, verbose: true});
+                    const isPromotion = possibleMoves.some(m => m.to === sq && m.flags.includes('p'));
+                    
+                    if (isPromotion) {
+                        pendingMove = moveData;
+                        document.getElementById('promo-modal').style.display = 'block';
+                        return;
+                    }
                 }
 
                 executeMove(moveData);
             } else {
                 const p = game.get(sq);
-                if (p && p.color === 'w') {
+                if (p && p.color === game.turn()) { // يسمح فقط بتحريك قطع الدور الحالي
                     selectedSquare = sq;
                     renderBoard();
                 }
@@ -256,10 +267,14 @@
         function executeMove(m) {
             const move = game.move(m);
             if (move) {
+                lastMove = { from: move.from, to: move.to };
                 selectedSquare = null;
                 renderBoard();
                 updateHistory(move);
-                setTimeout(makeCPUMove, 300);
+                
+                if (!game.game_over()) {
+                    setTimeout(makeCPUMove, 400);
+                }
             } else {
                 selectedSquare = null;
                 renderBoard();
@@ -270,36 +285,47 @@
             const moves = game.moves();
             if (moves.length === 0) return;
             const move = game.move(moves[Math.floor(Math.random() * moves.length)]);
+            lastMove = { from: move.from, to: move.to };
             renderBoard();
             updateHistory(move);
         }
 
         function updateHistory(move) {
             const entry = document.createElement('div');
-            entry.style.borderBottom = '1px solid #333';
-            entry.style.padding = '3px';
-            entry.innerText = `${game.turn() === 'w' ? 'الأسود' : 'الأبيض'}: ${move.san}`;
+            entry.style.padding = '5px';
+            entry.style.borderBottom = '1px solid #2a2825';
+            const turnLabel = game.turn() === 'w' ? 'الأسود' : 'الأبيض';
+            entry.innerHTML = `<span style="color:#888">${turnLabel}:</span> <b>${move.san}</b>`;
             historyEl.prepend(entry);
             
-            let s = "دورك الآن";
+            updateStatusLabel();
+        }
+
+        function updateStatusLabel() {
+            let s = game.turn() === 'w' ? "دور الأبيض.." : "الموقع يفكر..";
             if (game.in_checkmate()) s = "كش ملك! انتهت اللعبة.";
+            else if (game.in_draw()) s = "تعادل!";
+            else if (game.in_check()) s = "كش ملك!";
             statusEl.innerText = s;
         }
 
         function exportPGN() {
             const pgn = game.pgn();
+            if (!pgn) return alert("لا توجد حركات لنسخها!");
             navigator.clipboard.writeText(pgn);
-            alert("تم نسخ كود PGN للحافظة:\n\n" + pgn);
+            alert("تم نسخ الـ PGN بنجاح!");
         }
 
         function undoMove() {
             game.undo(); game.undo();
+            lastMove = { from: null, to: null };
             renderBoard();
             historyEl.innerHTML = '';
         }
 
         function resetGame() {
             game.reset();
+            lastMove = { from: null, to: null };
             historyEl.innerHTML = '';
             renderBoard();
         }
