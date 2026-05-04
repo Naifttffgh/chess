@@ -1,32 +1,38 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Chess } from 'chess.js';
+import { useStockfish } from './useStockfish'; // استدعاء هوك المحرك
 
 export const useChessGame = () => {
   const [game, setGame] = useState(new Chess());
+  const { bestMove, evaluation } = useStockfish(game.fen());
 
+  // دالة تحريك القطع
   const makeMove = useCallback((move) => {
     try {
       const result = game.move(move);
       if (result) {
-        setGame(new Chess(game.fen())); // تحديث الحالة لفرض إعادة الريندر
+        setGame(new Chess(game.fen()));
         return result;
       }
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   }, [game]);
 
-  const resetGame = () => {
-    const newGame = new Chess();
-    setGame(newGame);
-    return newGame.fen();
-  };
+  // منطق رد البوت تلقائياً
+  useEffect(() => {
+    if (game.turn() === 'b' && !game.isGameOver() && bestMove) {
+      // تأخير بسيط ليبدو اللعب طبيعياً
+      const timer = setTimeout(() => {
+        makeMove(bestMove);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [game, bestMove, makeMove]);
 
   return {
     fen: game.fen(),
-    history: game.history({ verbose: true }),
+    evaluation,
     makeMove,
-    resetGame,
     isGameOver: game.isGameOver(),
+    turn: game.turn()
   };
 };
