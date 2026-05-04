@@ -1,33 +1,36 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 export const useStockfish = (fen) => {
+  const [bestMove, setBestMove] = useState(null);
   const [evaluation, setEvaluation] = useState(0);
-  const [bestMove, setBestMove] = useState('');
-  const workerRef = useRef(null);
 
   useEffect(() => {
-    // تهيئة الـ Worker الخاص بالمحرك من مجلد logic
-    workerRef.current = new Worker('/logic/engine/stockfish.worker.js');
+    // استدعاء ملف الـ Worker من مجلد public
+    const engine = new Worker('/logic/engine/stockfish.worker.js');
 
-    workerRef.current.onmessage = (e) => {
+    engine.onmessage = (e) => {
       const line = e.data;
+      
+      // تحليل سطر التقييم (Evaluation)
       if (line.includes('score cp')) {
-        const score = parseInt(line.split('score cp ')[1]) / 100;
-        setEvaluation(score);
-      } else if (line.includes('bestmove')) {
-        setBestMove(line.split('bestmove ')[1].split(' ')[0]);
+        const score = line.split('score cp ')[1]?.split(' ')[0];
+        setEvaluation(parseInt(score) / 100);
+      }
+      
+      // استقبال أفضل نقلة (Best Move)
+      if (line.includes('bestmove')) {
+        const move = line.split('bestmove ')[1]?.split(' ')[0];
+        setBestMove(move);
       }
     };
 
-    return () => workerRef.current.terminate();
-  }, []);
+    // إرسال الأوامر للمحرك
+    engine.postMessage('uci');
+    engine.postMessage(`position fen ${fen}`);
+    engine.postMessage('go depth 18'); // عمق البحث 18 لضمان سرعة الرد
 
-  useEffect(() => {
-    if (workerRef.current && fen) {
-      workerRef.current.postMessage(`position fen ${fen}`);
-      workerRef.current.postMessage('go depth 15'); // تحديد العمق
-    }
+    return () => engine.terminate(); // إغلاق المحرك عند تغيير الوضعية لتوفير الموارد
   }, [fen]);
 
-  return { evaluation, bestMove };
+  return { bestMove, evaluation };
 };
