@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شطرنج - المحرك المحلي</title>
+    <title>شطرنج - المحرك المحلي الذكي</title>
     
-    <!-- مكتبة التنسيق للرقعة من مصدر خارجي موثوق -->
-    <link rel="stylesheet" 
-          href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <!-- مكتبة التنسيق -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     
     <style>
         body { 
@@ -19,22 +18,35 @@
             align-items: center; 
             height: 100vh; 
             color: white;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         #myBoard { 
-            width: 85vw; 
-            max-width: 550px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            width: 90vw; 
+            max-width: 500px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            border: 2px solid #333;
         }
-        .status { margin-bottom: 10px; font-size: 1.2rem; }
+        .status-container {
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #262421;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .status-text { font-size: 1.1rem; color: #bababa; }
+        .engine-name { color: #779556; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="status" id="gameStatus">دورك (الأبيض)</div>
+    <div class="status-container">
+        <div class="status-text" id="status">جاهز للعب.. دور الأبيض</div>
+        <div class="engine-name">Stockfish 16 Engine</div>
+    </div>
+
     <div id="myBoard"></div>
 
-    <!-- استدعاء المكتبات الضرورية (JQuery + Chess.js + Chessboard.js) -->
+    <!-- استدعاء المكتبات -->
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
@@ -42,33 +54,45 @@
     <script>
         var board = null;
         var game = new Chess();
-        var statusEl = $('#gameStatus');
+        var $status = $('#status');
 
-        // استدعاء المحرك من المسار الذي حددته في مجلد public
-        // تأكد أن المجلدات بنفس الاسم: logic/engine/
-        var engine = new Worker('/logic/engine/stockfish.worker.js');
-
-        function onDragStart (source, piece, position, orientation) {
-            // منع تحريك القطع إذا انتهت اللعبة أو كان دور الأسود (البوت)
-            if (game.game_over()) return false;
-            if (piece.search(/^b/) !== -1) return false;
+        // 1. إعداد المحرك (الـ Worker)
+        var engine;
+        try {
+            // استخدام مسار نسبي لضمان قراءة الملف في Vercel
+            engine = new Worker('./logic/engine/stockfish.worker.js');
+            console.log("Stockfish Worker Initialized");
+        } catch (e) {
+            $status.html("خطأ: لم يتم العثور على ملف المحرك");
+            console.error(e);
         }
 
+        // 2. منطق حركة المحرك
         function makeEngineMove() {
-            statusEl.html('المحرك يفكر...');
+            if (!engine) return;
+
+            $status.html('المحرك يحلل الآن...');
             
+            // إرسال الوضعية الحالية للمحرك
+            engine.postMessage('uci');
             engine.postMessage('position fen ' + game.fen());
-            engine.postMessage('go depth 15');
-            
+            engine.postMessage('go depth 13'); // عمق 13 لسرعة استجابة فائقة على 210Hz
+
             engine.onmessage = function(e) {
                 if (e.data.includes('bestmove')) {
                     var moveStr = e.data.split('bestmove ')[1].split(' ')[0];
                     game.move(moveStr, { sloppy: true });
                     board.position(game.fen());
-                    statusEl.html('دورك الآن');
-                    checkGameOver();
+                    updateStatus();
                 }
             };
+        }
+
+        // 3. قواعد اللعبة (تحريك القطع)
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            // منع تحريك قطع الأسود يدوياً
+            if (piece.search(/^b/) !== -1) return false;
         }
 
         function onDrop (source, target) {
@@ -80,24 +104,33 @@
 
             if (move === null) return 'snapback';
 
+            $status.html('دور الأسود..');
             window.setTimeout(makeEngineMove, 250);
         }
 
-        function checkGameOver() {
-            if (game.in_checkmate()) statusEl.html('كش ملك! انتهت اللعبة.');
-            else if (game.in_draw()) statusEl.html('تعادل!');
+        function updateStatus () {
+            var status = 'دورك الآن';
+            if (game.in_checkmate()) status = 'انتهت اللعبة: كش ملك!';
+            else if (game.in_draw()) status = 'انتهت اللعبة: تعادل';
+            else if (game.in_check()) status = 'انتبه: كش!';
+            
+            $status.html(status);
         }
 
+        // 4. تشغيل الرقعة
         var config = {
             draggable: true,
             position: 'start',
             onDragStart: onDragStart,
             onDrop: onDrop,
-            // استخدام صور القطع من سيرفر خارجي لضمان عدم ظهور شاشة بيضاء إذا فقدت ملفات الصور المحلية
+            // ثيم القطع الرسمي
             pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
         };
 
         board = ChessBoard('myBoard', config);
+        
+        // تحسين الأداء للشاشات السريعة
+        $(window).resize(board.resize);
     </script>
 </body>
 </html>
